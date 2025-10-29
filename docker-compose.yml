@@ -1,0 +1,11 @@
+# docker compose up -d --remove-orphans --force-recreate --build
+
+services:
+  random_coffee:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["python", "-m", "random_coffee.main"]
+    volumes:
+      - /etc/random_coffee/:/etc/random_coffee/

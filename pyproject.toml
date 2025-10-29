@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "random_coffee"
+version = "0.1.0"
+description = "A Slack bot that randomly pairs team members for virtual coffee chats."
+readme = "README.md"
+authors = [
+    {name = "Dmitry Chebakov", email = "dmitry@chebakov.me"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.7"
+dependencies = [
+    "schedule>=1.1.0",
+    "slack-sdk>=3.17.0",
+    "pynvml>=11.0.0",
+    "requests>=2.25.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=22.3.0",
+    "isort>=5.10.1",
+    "flake8>=4.0.1",
+    "pytest>=7.0.0",
+]
+
+[project.scripts]
+random_coffee = "random_coffee.main:main"
+
+[tool.black]
+line-length = 88
+target-version = ['py37']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 88
