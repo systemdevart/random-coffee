@@ -95,16 +95,26 @@ def get_channel_members(client, channel):
         members_response = client.conversations_members(channel=channel_id)
         member_ids = members_response["members"]
 
+        excluded_usernames = ["admin", "v2v@dubformer.ai"]
+
         members = []
         for member_id in member_ids:
             user_info = client.users_info(user=member_id)
             user = user_info["user"]
             username = user.get("name", "")
+            display_name = user.get("profile", {}).get("display_name", "")
+            real_name = user.get("real_name", "")
 
+            # Skip bots, deleted users, and excluded usernames
             if (
                 not user.get("is_bot", False)
                 and not user.get("deleted", False)
-                and username.lower() != "admin"
+                and username.lower()
+                not in [name.lower() for name in excluded_usernames]
+                and display_name.lower()
+                not in [name.lower() for name in excluded_usernames]
+                and real_name.lower()
+                not in [name.lower() for name in excluded_usernames]
             ):
                 members.append(
                     {
@@ -112,6 +122,8 @@ def get_channel_members(client, channel):
                         "name": user.get("real_name", user.get("name", "Unknown")),
                     }
                 )
+            else:
+                logger.info(f"Excluded user from pairing: {username}")
 
         logger.info(f"Found {len(members)} members in channel {channel}")
         return members
