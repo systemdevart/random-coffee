@@ -6,8 +6,17 @@ import argparse
 import json
 import random
 
+from dotenv import load_dotenv
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
+
+from random_coffee.topics_generator import (
+    generate_conversation_topics,
+    format_topics_for_slack,
+)
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 logging.basicConfig(
@@ -166,7 +175,7 @@ def create_pairs(members):
     return pairs
 
 
-def create_pairing_message(pairs):
+def create_pairing_message(pairs, topics_text=""):
     message_parts = [
         "☕ *Happy Tuesday, Coffee Lovers!* ☕\n",
         "It's time for our weekly Random Coffee pairings! 🎉\n\n",
@@ -185,6 +194,10 @@ def create_pairing_message(pairs):
                 f"{i}. <@{group[0]['id']}> - You're flying solo this week! 💙\n"
             )
 
+    # Add conversation topics if available
+    if topics_text:
+        message_parts.append(topics_text)
+
     message_parts.extend(
         [
             "\n✨ *Here's the idea:* ✨\n",
@@ -200,7 +213,7 @@ def create_pairing_message(pairs):
     return "".join(message_parts)
 
 
-def pair_and_notify(client, channel):
+def pair_and_notify(client, channel, openai_api_key=None):
     try:
         logger.info(f"Starting pairing process for channel {channel}")
 
@@ -215,7 +228,19 @@ def pair_and_notify(client, channel):
         pairs = create_pairs(members)
         logger.info(f"Created {len(pairs)} pairs")
 
-        message = create_pairing_message(pairs)
+        # Generate conversation topics if OpenAI API key is available
+        topics_text = ""
+        if openai_api_key:
+            try:
+                logger.info("Generating conversation topics...")
+                topics = generate_conversation_topics(openai_api_key)
+                topics_text = format_topics_for_slack(topics)
+                logger.info(f"Generated {len(topics)} conversation topics")
+            except Exception as e:
+                logger.error(f"Failed to generate conversation topics: {e}")
+                # Continue without topics - don't fail the whole pairing process
+
+        message = create_pairing_message(pairs, topics_text)
 
         client.chat_postMessage(channel=channel, text=message)
         logger.info(f"Pairing notification sent to {channel}")
@@ -248,6 +273,17 @@ def main():
         )
         return
 
+    # Load OpenAI API key from environment or config
+    openai_api_key = os.environ.get("OPENAI_API_KEY")
+    if config and "openai_api_key" in config:
+        openai_api_key = config["openai_api_key"]
+
+    if not openai_api_key:
+        logger.warning(
+            "No OpenAI API key provided. Conversation topics will not be generated. "
+            "Set OPENAI_API_KEY environment variable or include 'openai_api_key' in config."
+        )
+
     channel = args.channel
     pairing_time = args.time
 
@@ -258,11 +294,16 @@ def main():
         logger.info(
             f"Pairings scheduled every Tuesday at {pairing_time} UTC in {channel}"
         )
+        if openai_api_key:
+            logger.info(
+                "OpenAI API key configured - conversation topics will be generated"
+            )
 
         schedule.every().tuesday.at(pairing_time).do(
             pair_and_notify,
             client=client,
             channel=channel,
+            openai_api_key=openai_api_key,
         )
 
         while True:

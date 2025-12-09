@@ -1,2 +1,5 @@
 /*.log
 .env
+*.egg-info
+__pycache__
+.vscode
