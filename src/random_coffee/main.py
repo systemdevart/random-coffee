@@ -95,7 +95,12 @@ def get_channel_members(client, channel):
         members_response = client.conversations_members(channel=channel_id)
         member_ids = members_response["members"]
 
-        excluded_usernames = ["admin", "v2v@dubformer.ai"]
+        excluded_usernames = [
+            "admin",
+            "v2v@dubformer.ai",
+            "Eugene Gritskevich",
+            "eg@dubformer.ai",
+        ]
 
         members = []
         for member_id in member_ids:
