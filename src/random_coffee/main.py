@@ -17,6 +17,7 @@ from random_coffee.pairing import (
     get_channel_members,
     create_pairs,
     create_pairing_message,
+    fetch_recent_pairs,
 )
 
 # Load environment variables from .env file
@@ -101,7 +102,10 @@ def pair_and_notify(client, channel, openai_api_key=None):
             send_error_to_admin(client, warning_msg, "Pairing Process Warning")
             return
 
-        pairs = create_pairs(members)
+        # Fetch recent pairings to avoid repeating them
+        blocked_pairs = fetch_recent_pairs(client, channel, days=30)
+
+        pairs = create_pairs(members, blocked_pairs)
         logger.info(f"Created {len(pairs)} pairs")
 
         # Generate conversation topics if OpenAI API key is available
