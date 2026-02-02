@@ -4,7 +4,6 @@ import schedule
 import logging
 import argparse
 import json
-import random
 
 from dotenv import load_dotenv
 from slack_sdk import WebClient
@@ -13,6 +12,11 @@ from slack_sdk.errors import SlackApiError
 from random_coffee.topics_generator import (
     generate_conversation_topics,
     format_topics_for_slack,
+)
+from random_coffee.pairing import (
+    get_channel_members,
+    create_pairs,
+    create_pairing_message,
 )
 
 # Load environment variables from .env file
@@ -83,134 +87,6 @@ def send_error_to_admin(client, error_msg, context=""):
 
     except Exception as e:
         logger.error(f"Failed to send error notification to admin: {str(e)}")
-
-
-def get_channel_members(client, channel):
-    try:
-        if channel.startswith("#"):
-            channel = channel[1:]
-
-        response = client.conversations_list(types="public_channel,private_channel")
-        channel_id = None
-        for ch in response["channels"]:
-            if ch["name"] == channel:
-                channel_id = ch["id"]
-                break
-
-        if not channel_id:
-            logger.error(f"Channel {channel} not found")
-            return []
-
-        members_response = client.conversations_members(channel=channel_id)
-        member_ids = members_response["members"]
-
-        excluded_usernames = [
-            "admin",
-            "v2v@dubformer.ai",
-            "Eugene Gritskevich",
-            "eg@dubformer.ai",
-        ]
-
-        members = []
-        for member_id in member_ids:
-            user_info = client.users_info(user=member_id)
-            user = user_info["user"]
-            username = user.get("name", "")
-            display_name = user.get("profile", {}).get("display_name", "")
-            real_name = user.get("real_name", "")
-
-            # Skip bots, deleted users, and excluded usernames
-            if (
-                not user.get("is_bot", False)
-                and not user.get("deleted", False)
-                and username.lower()
-                not in [name.lower() for name in excluded_usernames]
-                and display_name.lower()
-                not in [name.lower() for name in excluded_usernames]
-                and real_name.lower()
-                not in [name.lower() for name in excluded_usernames]
-            ):
-                members.append(
-                    {
-                        "id": user["id"],
-                        "name": user.get("real_name", user.get("name", "Unknown")),
-                    }
-                )
-            else:
-                logger.info(f"Excluded user from pairing: {username}")
-
-        logger.info(f"Found {len(members)} members in channel {channel}")
-        return members
-
-    except SlackApiError as e:
-        error_msg = f"Error fetching channel members: {e.response['error']}"
-        logger.error(error_msg)
-        send_error_to_admin(
-            client, error_msg, f"Failed to fetch members from {channel}"
-        )
-        return []
-    except Exception as e:
-        error_msg = f"Unexpected error fetching channel members: {str(e)}"
-        logger.error(error_msg)
-        send_error_to_admin(
-            client, error_msg, f"Failed to fetch members from {channel}"
-        )
-        return []
-
-
-def create_pairs(members):
-    shuffled = members.copy()
-    random.shuffle(shuffled)
-
-    pairs = []
-    for i in range(0, len(shuffled) - 1, 2):
-        pairs.append([shuffled[i], shuffled[i + 1]])
-
-    if len(shuffled) % 2 == 1 and len(pairs) > 0:
-        odd_member = shuffled[-1]
-        random_pair_index = random.randint(0, len(pairs) - 1)
-        pairs[random_pair_index].append(odd_member)
-        logger.info(f"Added odd member to pair {random_pair_index + 1} (now a trio)")
-
-    return pairs
-
-
-def create_pairing_message(pairs, topics_text=""):
-    message_parts = [
-        "☕ *Happy Tuesday, Coffee Lovers!* ☕\n",
-        "It's time for our weekly Random Coffee pairings! 🎉\n\n",
-        "Here are this week's wonderful pairings:\n\n",
-    ]
-
-    for i, group in enumerate(pairs, 1):
-        if len(group) == 2:
-            message_parts.append(f"{i}. <@{group[0]['id']}> & <@{group[1]['id']}> ☕\n")
-        elif len(group) == 3:
-            message_parts.append(
-                f"{i}. <@{group[0]['id']}>, <@{group[1]['id']}> & <@{group[2]['id']}> ☕ (trio!)\n"
-            )
-        else:
-            message_parts.append(
-                f"{i}. <@{group[0]['id']}> - You're flying solo this week! 💙\n"
-            )
-
-    # Add conversation topics if available
-    if topics_text:
-        message_parts.append(topics_text)
-
-    message_parts.extend(
-        [
-            "\n✨ *Here's the idea:* ✨\n",
-            "Tomorrow (Wednesday) would be a lovely day for a coffee chat! "
-            "It's totally optional and there's no pressure at all. 💛\n\n",
-            "📅 Feel free to schedule a quick 15-30 minute call whenever works best for both of you.\n",
-            "💬 Chat about anything - hobbies, weekend plans, fun projects, or just say hi!\n",
-            "🤝 If this week doesn't work out, no worries! There's always next Tuesday.\n\n",
-            "Have a wonderful week, everyone! 🌟",
-        ]
-    )
-
-    return "".join(message_parts)
 
 
 def pair_and_notify(client, channel, openai_api_key=None):
